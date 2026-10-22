@@ -1,0 +1,51 @@
+# Weekly pull, extraction and forecast. Needs repository secrets X_BEARER_TOKEN and,
+# for LLM extraction, GEMINI_API_KEY or ANTHROPIC_API_KEY.
+name: weekly-forecast
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      extractor:
+        description: '"rules" or a Claude model id'
+        default: rules
+  push:
+    paths: ["*.py", "tests/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+
+  forecast:
+    needs: test
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    env:
+      X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ACLED_EMAIL: ${{ secrets.ACLED_EMAIL }}
+      ACLED_PASSWORD: ${{ secrets.ACLED_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      # data/ is gitignored, so each run's outputs are kept as a build artifact.
+      - run: python pipeline.py run --fetch --extractor "${{ inputs.extractor || 'rules' }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-${{ github.run_id }}
+          path: data/
+          retention-days: 400
+      - run: cat data/runs/*/brief.md >> "$GITHUB_STEP_SUMMARY"
