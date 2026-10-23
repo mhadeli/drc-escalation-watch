@@ -211,6 +211,27 @@ class FetchTests(unittest.TestCase):
             self.x.collect("token", "q", target=500, page_size=100, pause_seconds=0)
 
 
+class PublishTests(unittest.TestCase):
+    def test_publish_copies_only_post_free_files(self):
+        import pipeline
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old = pipeline.RUNS, pipeline.HISTORY
+            pipeline.RUNS, pipeline.HISTORY = Path(tmp) / "runs", Path(tmp) / "history"
+            try:
+                for run_id in ("20261023T000000Z", "20261024T000000Z"):
+                    run = pipeline.RUNS / run_id
+                    run.mkdir(parents=True)
+                    for name in ("manifest.json", "forecast.json", "health.json", "tagged.jsonl", "brief.md"):
+                        (run / name).write_text("{}")
+                published = pipeline.publish([])
+                names = sorted(path.name for path in published[0].iterdir())
+            finally:
+                pipeline.RUNS, pipeline.HISTORY = old
+        self.assertEqual(published[0].name, "20261024T000000Z", "default is the latest run")
+        self.assertEqual(names, ["forecast.json", "health.json", "manifest.json"])
+
+
 class DashboardTests(unittest.TestCase):
     def test_page_builds_without_post_text(self):
         import json

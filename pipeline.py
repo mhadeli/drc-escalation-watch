@@ -1,12 +1,15 @@
-"""Weekly pipeline: ingest -> extract -> forecast -> health -> brief, plus scoring of past runs.
+"""Pipeline: ingest -> extract -> forecast -> health -> brief, plus publishing and scoring.
 
   python pipeline.py run                      # latest saved pull, rule extractor
-  python pipeline.py run --fetch              # new X pull first (costs ~$5 per 1,000 posts)
-  python pipeline.py run --extractor claude-opus-5-5
-  python pipeline.py score --outcomes data/outcomes.csv
+  python pipeline.py run --fetch              # new X pull first (costs X API credits)
+  python pipeline.py run --extractor gemini-3.8-flash
+  python pipeline.py publish                  # latest run -> history/runs (what the dashboard reads)
+  python pipeline.py publish 20261023T050000Z 20261024T060000Z
+  python pipeline.py score                    # score published runs against history/outcomes.csv
 
-Every run writes data/runs/<run_id>/: manifest.json (inputs, code hash, extractor,
-counts, timings), tagged.jsonl, forecast.json, health.json and brief.md.
+Every run writes data/runs/<run_id>/ (local, gitignored): manifest.json, tagged.jsonl,
+forecast.json, health.json and brief.md. Publishing copies only manifest, forecast,
+health and scores into history/runs/, which is committed; post text never leaves data/.
 
 outcomes.csv has one row per major escalation: hotspot,date (YYYY-MM-DD),source,note.
 """
@@ -26,6 +29,8 @@ import fetch_recent as x
 import forecast as fc
 
 RUNS = x.ROOT / "data" / "runs"
+HISTORY = x.ROOT / "history"
+PUBLISHED_FILES = ("manifest.json", "forecast.json", "health.json", "scores.json")
 CODE_FILES = ("fetch_recent.py", "forecast.py", "extract_llm.py", "pipeline.py")
 
 
@@ -200,12 +205,33 @@ def read_outcomes(path: Path) -> list:
     return events
 
 
-def score(outcomes_path: Path, today: date | None = None) -> list:
-    """Score every saved run whose horizons have passed. Returns one line per run and horizon."""
+def publish(run_ids: list) -> list:
+    """Copy runs' post-free files from data/runs into history/runs for the dashboard."""
+    if not run_ids:
+        local = sorted(path.parent.name for path in RUNS.glob("*/manifest.json"))
+        if not local:
+            raise SystemExit("no local runs to publish")
+        run_ids = local[-1:]
+    published = []
+    for run_id in run_ids:
+        source = RUNS / run_id
+        if not (source / "forecast.json").exists():
+            raise SystemExit(f"no forecast for run {run_id} in {RUNS}")
+        target = HISTORY / "runs" / run_id
+        target.mkdir(parents=True, exist_ok=True)
+        for name in PUBLISHED_FILES:
+            if (source / name).exists():
+                (target / name).write_bytes((source / name).read_bytes())
+        published.append(target)
+    return published
+
+
+def score(outcomes_path: Path, runs_dir: Path = HISTORY / "runs", today: date | None = None) -> list:
+    """Score every run in `runs_dir` whose horizons have passed. Returns one line per run and horizon."""
     today = today or datetime.now(timezone.utc).date()
     events = read_outcomes(outcomes_path)
     lines = []
-    for path in sorted(RUNS.glob("*/forecast.json")):
+    for path in sorted(runs_dir.glob("*/forecast.json")):
         saved = json.loads(path.read_text())
         issued = date.fromisoformat(saved["issued"])
         outcomes = {}
@@ -226,11 +252,14 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     go = sub.add_parser("run")
     go.add_argument("--fetch", action="store_true", help="pull new posts from X first")
-    go.add_argument("--extractor", default="rules", help='"rules" or a Claude model id')
+    go.add_argument("--extractor", default="rules", help='"rules", a gemini-* or a claude-* model id')
     go.add_argument("--acled", type=Path, help="ACLED CSV export for base rates")
     go.add_argument("--acled-months", type=float, default=12)
+    share = sub.add_parser("publish")
+    share.add_argument("run_ids", nargs="*", help="local run ids; default is the latest run")
     grade = sub.add_parser("score")
-    grade.add_argument("--outcomes", type=Path, required=True)
+    grade.add_argument("--outcomes", type=Path, default=HISTORY / "outcomes.csv")
+    grade.add_argument("--runs", type=Path, default=HISTORY / "runs")
     args = parser.parse_args()
 
     if args.command == "run":
@@ -241,8 +270,14 @@ def main() -> None:
             print(f"WARNING: {warning}")
         print((out / "brief.md").read_text().split("## Evidence")[0])
         sys.exit(1 if manifest["health"]["warnings"] and args.fetch else 0)
+    elif args.command == "publish":
+        for path in publish(args.run_ids):
+            print(f"published {path}")
     else:
-        lines = score(args.outcomes)
+        if not args.outcomes.exists():
+            print(f"no outcomes file at {args.outcomes} yet")
+            return
+        lines = score(args.outcomes, args.runs)
         for line in lines:
             print(line)
         if not lines:

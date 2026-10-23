@@ -1,15 +1,13 @@
-# Weekly pull, extraction and forecast. 
-# Needs repository secrets X_BEARER_TOKEN and
-# GEMINI_API_KEY (or ANTHROPIC_API_KEY for a claude-* extractor).
+# Manual pull, extraction and forecast in CI. There is no schedule, so nothing spends
+# X or Gemini credits unless you start it from Actions -> weekly-forecast -> Run workflow.
+# Needs repository secrets X_BEARER_TOKEN and GEMINI_API_KEY (or ANTHROPIC_API_KEY).
 #
-# Run history lives on the `data` branch: manifests, forecasts, health checks, scores and
-# outcomes.csv. Post text never goes there (X terms); raw and tagged posts and the brief
-# are kept as a 90-day build artifact instead.
+# The run's post-free files (manifest, forecast, health, scores) are published to
+# history/runs on main, which rebuilds the dashboard. Raw posts, tagged posts and the
+# brief are kept only as a 90-day build artifact (X terms: post text is not committed).
 name: weekly-forecast
 
 on:
-  schedule:
-    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
   workflow_dispatch:
     inputs:
       extractor:
@@ -17,7 +15,7 @@ on:
         default: gemini-3.8-flash
 
 concurrency:
-  group: weekly-forecast  # two runs must not push to the data branch at once
+  group: weekly-forecast
 
 jobs:
   forecast:
@@ -37,51 +35,25 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests
 
-      - name: Restore run history from the data branch
+      - name: Restore published runs for run-to-run checks
         run: |
-          if git ls-remote --exit-code --heads origin data > /dev/null; then
-            git fetch --depth=1 origin data
-            git worktree add --detach history FETCH_HEAD
-          else
-            git worktree add --detach history
-            git -C history checkout -q --orphan data
-            git -C history rm -rq --cached . && git -C history clean -fdxq
-          fi
           mkdir -p data/runs
           if [ -d history/runs ]; then cp -R history/runs/. data/runs/; fi
-          if [ -f history/outcomes.csv ]; then cp history/outcomes.csv data/outcomes.csv; fi
-          echo "restored $(ls data/runs | wc -l) past runs"
 
       - name: Pull posts and forecast
         run: python pipeline.py run --fetch --extractor "$EXTRACTOR"
 
-      - name: Score past runs against outcomes
+      - name: Publish and score
         if: always()
         run: |
-          if [ -f data/outcomes.csv ]; then
-            python pipeline.py score --outcomes data/outcomes.csv
-          else
-            echo "no outcomes.csv on the data branch yet"
-          fi
-
-      - name: Save forecasts to the data branch (no post text)
-        if: always()
-        run: |
-          mkdir -p history/runs
-          for dir in data/runs/*/; do
-            id=$(basename "$dir")
-            mkdir -p "history/runs/$id"
-            for name in manifest.json forecast.json health.json scores.json; do
-              if [ -f "$dir$name" ]; then cp "$dir$name" "history/runs/$id/"; fi
-            done
-          done
-          cd history
-          git add runs
-          if git diff --cached --quiet; then echo "nothing new to save"; exit 0; fi
+          python pipeline.py publish || echo "no new run to publish"
+          python pipeline.py score
+          git add history
+          if git diff --cached --quiet; then echo "nothing new to publish"; exit 0; fi
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "Forecast run $(date -u +%Y-%m-%d) ($EXTRACTOR)"
-          git push -q origin HEAD:data
+              commit -q -m "Publish forecast run $(date -u +%Y-%m-%d) ($EXTRACTOR)"
+          git push -q origin HEAD:main
 
       - uses: actions/upload-artifact@v4
         if: always()

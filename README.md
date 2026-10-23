@@ -2,7 +2,7 @@
 
 Forecasts, for 20 DRC hotspots, the probability of a **major escalation** within 30, 60 and 90 days: a single event with 10+ deaths, a locality changing hands, or 5,000+ newly displaced. "Any violence" is not the target because it is close to certain every month in most eastern territories.
 
-**Live dashboard: [mhadeli.github.io/drc-escalation-watch](https://mhadeli.github.io/drc-escalation-watch/)**. It is rebuilt after every weekly run and shows forecasts by hotspot, a map, trends, scores and run health. No post text is published.
+**Live dashboard: [mhadeli.github.io/drc-escalation-watch](https://mhadeli.github.io/drc-escalation-watch/)**. It is built only from the saved runs in `history/runs`, with no API calls, and shows forecasts by hotspot, a map, trends, scores and run health. No post text is published.
 
 ## Pipeline
 
@@ -20,7 +20,8 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python pipeline.py run --fetch --extractor gemini-3.8-flash
 .venv/bin/python acled.py --months 12                              # ACLED events -> data/acled/
 .venv/bin/python pipeline.py run --acled data/acled/<file>.csv
-.venv/bin/python pipeline.py score --outcomes data/outcomes.csv
+.venv/bin/python pipeline.py publish                                # latest run -> history/runs
+.venv/bin/python pipeline.py score                                  # against history/outcomes.csv
 .venv/bin/python -m unittest discover -s tests
 ```
 
@@ -34,37 +35,35 @@ Each run writes `data/runs/<run_id>/`:
 | `health.json` | Usable share, extraction errors, change since last run, places missing from the gazetteer |
 | `brief.md` | One page for readers who don't build models |
 
-### Scheduled runs (GitHub Actions)
+### Saved data
 
-- `tests.yml` runs the unit tests on every push and pull request.
-- `weekly.yml` runs the full pipeline every Monday at 06:00 UTC, or on demand from **Actions → weekly-forecast → Run workflow**. The default extractor is `gemini-3.8-flash`. It needs repository secrets `X_BEARER_TOKEN` and `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY` for a `claude-*` extractor).
+| Where | What | In git? |
+|---|---|---|
+| `data/raw/`, `data/runs/<id>/tagged.jsonl`, `brief.md` | Posts, extractions, briefs with evidence | No: local only (X terms) |
+| `data/llm_cache/` | Gemini/Claude responses per post | No: local only |
+| `history/runs/<id>/` | `manifest.json`, `forecast.json`, `health.json`, `scores.json` | Yes |
+| `history/outcomes.csv` | Major escalations you record, for scoring | Yes |
 
-Run history lives on the `data` branch, so health checks can compare against the last run and forecasts can be scored:
+Everything downstream of extraction runs from saved files. Once the APIs are retired, `pipeline.py run` (no `--fetch`) on a saved pull and `pipeline.py score` still work, and LLM extractions are reused from `data/llm_cache/`.
 
-```
-data branch
-├── outcomes.csv              # you add rows here as major escalations happen
-└── runs/<run_id>/
-    ├── manifest.json
-    ├── forecast.json
-    ├── health.json
-    └── scores.json           # once resolve-by dates pass
-```
+### GitHub Actions
 
-Post text is never committed (X developer terms). Raw posts, tagged posts and the brief are kept as a 90-day build artifact, and the brief is also shown on the run's summary page.
+- `tests.yml` runs the unit tests on every push.
+- `dashboard.yml` rebuilds the dashboard when `history/` changes. It reads saved files only.
+- `weekly.yml` is manual only (**Actions → weekly-forecast → Run workflow**). It pulls from X, extracts with `gemini-3.8-flash`, then publishes the run to `history/runs` on `main`. It needs repository secrets `X_BEARER_TOKEN` and `GEMINI_API_KEY`. Nothing runs on a schedule, so no credits are spent unless you start it.
+
+Publishing locally works the same way: `pipeline.py run --fetch --extractor gemini-3.8-flash`, then `pipeline.py publish`, then commit `history/`.
 
 ### Dashboard (GitHub Pages)
 
-`dashboard.yml` rebuilds a static dashboard from the `data` branch after every weekly run:
-- the forecast per hotspot against its baseline, for 30/60/90 days
+The page has five sections:
+- forecast per hotspot against its baseline, for 30/60/90 days
 - a map
 - forecasts over time
 - scores against outcomes
 - run health
 
-The page shows forecasts, counts and health checks only, never post text.
-
-One-time setup: **Settings → Pages → Source: GitHub Actions**. On a free GitHub plan, Pages requires the repo to be public. To preview locally, run `python dashboard.py` and open `site/index.html`.
+One-time setup: **Settings → Pages → Source: GitHub Actions**. To preview locally, run `python dashboard.py --runs history/runs` and open `site/index.html`.
 
 ## Modules
 
@@ -92,7 +91,7 @@ P(h) = 1 − exp(−λ/30 · (h + (m − 1) · τ · (1 − e^(−h/τ))))
 
 This reports precision, recall and F1 per field, splits by language, lists errors, and gives token use per model. Rules are always included as the baseline.
 
-**Forecasts.** Record each major escalation in `data/outcomes.csv` (`hotspot,date,source,note`; a hotspot can be a short name such as `Kaziba`). `pipeline.py score` reports Brier score for the model and for the baseline-only forecast, plus skill = 1 − Brier/Brier_baseline. Skill above 0 means the X signal adds information.
+**Forecasts.** Record each major escalation in `history/outcomes.csv` (`hotspot,date,source,note`; a hotspot can be a short name such as `Kaziba`). `pipeline.py score` reports Brier score for the model and for the baseline-only forecast, plus skill = 1 − Brier/Brier_baseline. Skill above 0 means the X signal adds information.
 
 ## Known limits
 
