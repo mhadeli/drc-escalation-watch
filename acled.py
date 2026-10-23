@@ -38,13 +38,21 @@ def token() -> str:
         "password": _credential("ACLED_PASSWORD"),
         "grant_type": "password",
         "client_id": "acled",
+        "scope": "authenticated",
     }).encode()
     request = urllib.request.Request(TOKEN_URL, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             return json.load(response)["access_token"]
     except urllib.error.HTTPError as error:
-        raise RuntimeError(f"ACLED login failed (HTTP {error.code}): {error.read()[:300]!r}") from None
+        body = error.read()
+        if b"_cf_chl" in body or b"Just a moment" in body:
+            raise RuntimeError(
+                "ACLED's Cloudflare protection blocked the login from this network (a browser challenge, "
+                "not a credentials error). Download a CSV from the myACLED Data Export Tool instead and "
+                "pass it with --acled, or ask access@acleddata.com to allow API access."
+            ) from None
+        raise RuntimeError(f"ACLED login failed (HTTP {error.code}): {body[:300]!r}") from None
 
 
 def fetch(access_token: str, country: str, start: date, end: date) -> list:

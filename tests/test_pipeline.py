@@ -102,5 +102,75 @@ class ExtractorTests(unittest.TestCase):
         self.assertFalse(el.to_tagged(POST, record)["on_topic"])
 
 
+def fake_gemini(responses):
+    """Client whose generate_content returns (or raises) the given items in order."""
+    calls = []
+
+    def generate_content(**kwargs):
+        calls.append(kwargs)
+        item = responses[len(calls) - 1]
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    return SimpleNamespace(models=SimpleNamespace(generate_content=generate_content)), calls
+
+
+def gemini_response(parsed=True, finish="STOP", block_reason=None):
+    output = el.PostExtraction(relevant=True, historical=True, event_types=[], escalation=False, deescalation=False,
+                               hotspots=["Uvira (Ruzizi plain)"], other_places=[], actors=[], fatalities=None,
+                               displaced=None, source_type="opinion")
+    return SimpleNamespace(
+        model_version="gemini-3.8-flash",
+        usage_metadata=SimpleNamespace(prompt_token_count=500, candidates_token_count=60, thoughts_token_count=40,
+                                       cached_content_token_count=None),
+        prompt_feedback=SimpleNamespace(block_reason=block_reason) if block_reason else None,
+        candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name=finish))],
+        parsed=output if parsed else None,
+    )
+
+
+class GeminiTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old_cache, el.CACHE = el.CACHE, Path(self.tmp.name)
+        self.old_sleep, el.time.sleep = el.time.sleep, lambda seconds: None
+
+    def tearDown(self):
+        el.CACHE = self.old_cache
+        el.time.sleep = self.old_sleep
+        self.tmp.cleanup()
+
+    def test_routes_to_gemini_with_relaxed_safety_and_counts_thinking(self):
+        client, calls = fake_gemini([gemini_response()])
+        record = el.extract_one(client, POST, "gemini-3.8-flash")
+        self.assertIsNone(record["error"])
+        self.assertTrue(record["extraction"]["historical"])
+        self.assertEqual(record["usage"], {"input": 500, "output": 100, "cache_read": 0})
+        thresholds = {setting.threshold for setting in calls[0]["config"].safety_settings}
+        self.assertEqual(len(thresholds), 1)
+        self.assertEqual(str(thresholds.pop()).split(".")[-1], "BLOCK_NONE")
+
+    def test_retries_overload_then_succeeds(self):
+        busy = el.genai_errors.ServerError(503, {"error": {"code": 503, "message": "busy", "status": "UNAVAILABLE"}})
+        client, calls = fake_gemini([busy, busy, gemini_response()])
+        record = el.extract_one(client, POST, "gemini-3.8-flash")
+        self.assertEqual(len(calls), 3)
+        self.assertIsNone(record["error"])
+
+    def test_bad_request_is_not_retried(self):
+        bad = el.genai_errors.ClientError(400, {"error": {"code": 400, "message": "bad schema", "status": "INVALID_ARGUMENT"}})
+        client, calls = fake_gemini([bad])
+        record = el.extract_one(client, POST, "gemini-3.8-flash")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("400", record["error"])
+
+    def test_safety_block_is_an_error_and_not_cached(self):
+        client, _ = fake_gemini([gemini_response(parsed=False, finish="SAFETY")])
+        record = el.extract_one(client, POST, "gemini-3.8-flash")
+        self.assertEqual(record["error"], "blocked: SAFETY")
+        self.assertFalse(el._cache_path(POST["id"], "gemini-3.8-flash").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

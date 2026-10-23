@@ -32,7 +32,24 @@ Each run writes `data/runs/<run_id>/`:
 | `health.json` | Usable share, extraction errors, change since last run, places missing from the gazetteer |
 | `brief.md` | One page for readers who don't build models |
 
-`.github/workflows/weekly.yml` runs the tests on every push and the pipeline every Monday, using the repository secrets `X_BEARER_TOKEN`, `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY`), `ACLED_EMAIL` and `ACLED_PASSWORD`. CI starts from a clean checkout, so run history (needed for run-to-run checks and scoring) has to live somewhere durable. Use an S3/GCS bucket or a data branch.
+### Scheduled runs (GitHub Actions)
+
+- `tests.yml` runs the unit tests on every push and pull request.
+- `weekly.yml` runs the full pipeline every Monday at 06:00 UTC, or on demand from **Actions → weekly-forecast → Run workflow**. The default extractor is `gemini-3.8-flash`. It needs repository secrets `X_BEARER_TOKEN` and `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY` for a `claude-*` extractor).
+
+Run history lives on the `data` branch, so health checks can compare against the last run and forecasts can be scored:
+
+```
+data branch
+├── outcomes.csv              # you add rows here as major escalations happen
+└── runs/<run_id>/
+    ├── manifest.json
+    ├── forecast.json
+    ├── health.json
+    └── scores.json           # once resolve-by dates pass
+```
+
+Post text is never committed (X developer terms). Raw posts, tagged posts and the brief are kept as a 90-day build artifact, and the brief is also shown on the run's summary page.
 
 ## Modules
 

@@ -1,5 +1,9 @@
-# Weekly pull, extraction and forecast. Needs repository secrets X_BEARER_TOKEN and,
-# for LLM extraction, GEMINI_API_KEY or ANTHROPIC_API_KEY.
+# Weekly pull, extraction and forecast. Needs repository secrets X_BEARER_TOKEN and
+# GEMINI_API_KEY (or ANTHROPIC_API_KEY for a claude-* extractor).
+#
+# Run history lives on the `data` branch: manifests, forecasts, health checks, scores and
+# outcomes.csv. Post text never goes there (X terms); raw and tagged posts and the brief
+# are kept as a 90-day build artifact instead.
 name: weekly-forecast
 
 on:
@@ -8,44 +12,88 @@ on:
   workflow_dispatch:
     inputs:
       extractor:
-        description: '"rules" or a Claude model id'
-        default: rules
-  push:
-    paths: ["*.py", "tests/**"]
+        description: '"rules", a gemini-* or a claude-* model id'
+        default: gemini-3.8-flash
+
+concurrency:
+  group: weekly-forecast  # two runs must not push to the data branch at once
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
-
   forecast:
-    needs: test
-    if: github.event_name != 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      ACLED_EMAIL: ${{ secrets.ACLED_EMAIL }}
-      ACLED_PASSWORD: ${{ secrets.ACLED_PASSWORD }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      EXTRACTOR: ${{ inputs.extractor || 'gemini-3.8-flash' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      # data/ is gitignored, so each run's outputs are kept as a build artifact.
-      - run: python pipeline.py run --fetch --extractor "${{ inputs.extractor || 'rules' }}"
+      - run: python -m unittest discover -s tests
+
+      - name: Restore run history from the data branch
+        run: |
+          if git ls-remote --exit-code --heads origin data > /dev/null; then
+            git fetch --depth=1 origin data
+            git worktree add --detach history FETCH_HEAD
+          else
+            git worktree add --detach history
+            git -C history checkout -q --orphan data
+            git -C history rm -rq --cached . && git -C history clean -fdxq
+          fi
+          mkdir -p data/runs
+          if [ -d history/runs ]; then cp -R history/runs/. data/runs/; fi
+          if [ -f history/outcomes.csv ]; then cp history/outcomes.csv data/outcomes.csv; fi
+          echo "restored $(ls data/runs | wc -l) past runs"
+
+      - name: Pull posts and forecast
+        run: python pipeline.py run --fetch --extractor "$EXTRACTOR"
+
+      - name: Score past runs against outcomes
+        if: always()
+        run: |
+          if [ -f data/outcomes.csv ]; then
+            python pipeline.py score --outcomes data/outcomes.csv
+          else
+            echo "no outcomes.csv on the data branch yet"
+          fi
+
+      - name: Save forecasts to the data branch (no post text)
+        if: always()
+        run: |
+          mkdir -p history/runs
+          for dir in data/runs/*/; do
+            id=$(basename "$dir")
+            mkdir -p "history/runs/$id"
+            for name in manifest.json forecast.json health.json scores.json; do
+              if [ -f "$dir$name" ]; then cp "$dir$name" "history/runs/$id/"; fi
+            done
+          done
+          cd history
+          git add runs
+          if git diff --cached --quiet; then echo "nothing new to save"; exit 0; fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Forecast run $(date -u +%Y-%m-%d) ($EXTRACTOR)"
+          git push -q origin HEAD:data
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: run-${{ github.run_id }}
-          path: data/
-          retention-days: 400
-      - run: cat data/runs/*/brief.md >> "$GITHUB_STEP_SUMMARY"
+          path: |
+            data/raw/
+            data/runs/
+          retention-days: 90
+
+      - name: Brief
+        if: always()
+        run: |
+          for brief in data/runs/*/brief.md; do
+            if [ -f "$brief" ]; then cat "$brief" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
