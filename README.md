@@ -99,3 +99,7 @@ This reports precision, recall and F1 per field, splits by language, lists error
 - Baseline hazards are priors until replaced with ACLED rates; the probabilities are uncalibrated until scored.
 - Gemini's free tier runs out within a few posts; weekly runs of 1,000 posts need billing enabled.
 - The rules can't tell the past from the present inside a post ("Goma était tombée…"). That is the main case the LLM extractor has to beat.
+
+## Author
+
+Hussain Adeli ([@mhadeli](https://github.com/mhadeli))
