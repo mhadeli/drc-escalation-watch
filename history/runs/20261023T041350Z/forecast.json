@@ -15,7 +15,7 @@
     }
   },
   "issued": "2026-10-23",
-  "source_posts": "/Users/adeli/Documents/projects/Peloria/x_post/data/raw/drc_posts_20261022T190717Z.jsonl",
+  "source_posts": "drc_posts_20261022T190717Z.jsonl",
   "target": "major escalation: >=10 deaths in one event, a locality changing hands, or 5,000+ newly displaced",
   "resolve_by": {
     "p30": "2026-11-22",

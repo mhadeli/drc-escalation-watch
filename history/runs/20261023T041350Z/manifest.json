@@ -7,7 +7,7 @@
   ],
   "code_hash": "a4efc946a37f",
   "inputs": {
-    "posts_file": "/Users/adeli/Documents/projects/Peloria/x_post/data/raw/drc_posts_20261022T190717Z.jsonl",
+    "posts_file": "drc_posts_20261022T190717Z.jsonl",
     "query": "(Goma OR \"North Kivu\" OR \"Nord-Kivu\" OR \"South Kivu\" OR \"Sud-Kivu\" OR Ituri OR M23 OR \"DR Congo\" OR \"RD Congo\" OR RDC OR \"Democratic Republic of the Congo\" OR \"R\u00e9publique d\u00e9mocratique du Congo\") (attaque OR attack OR combat OR violence OR affrontement OR war OR conflict OR displaced OR d\u00e9plac\u00e9s OR fighting OR bombardement OR offensive) -is:retweet",
     "acled": null
   },

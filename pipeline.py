@@ -205,6 +205,11 @@ def read_outcomes(path: Path) -> list:
     return events
 
 
+def _strip_local_paths(text: str) -> str:
+    """Published files are public: keep file names, drop the machine's directories."""
+    return re.sub(r'"(?:/[^"/]+)+/([^"/]+)"', r'"\1"', text)
+
+
 def publish(run_ids: list) -> list:
     """Copy runs' post-free files from data/runs into history/runs for the dashboard."""
     if not run_ids:
@@ -221,7 +226,7 @@ def publish(run_ids: list) -> list:
         target.mkdir(parents=True, exist_ok=True)
         for name in PUBLISHED_FILES:
             if (source / name).exists():
-                (target / name).write_bytes((source / name).read_bytes())
+                (target / name).write_text(_strip_local_paths((source / name).read_text()))
         published.append(target)
     return published
 
