@@ -172,5 +172,25 @@ class GeminiTests(unittest.TestCase):
         self.assertFalse(el._cache_path(POST["id"], "gemini-3.8-flash").exists())
 
 
+class DashboardTests(unittest.TestCase):
+    def test_page_builds_without_post_text(self):
+        import json
+
+        import dashboard
+
+        result = fc.forecast([POST, {**POST, "id": "2", "author_id": "b"}])
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "runs" / "20261023T060000Z"
+            run.mkdir(parents=True)
+            summary = {"posts_per_day": {"2026-10-21": 2}, "posts_file": "x"}
+            fc.save_forecast(result, summary, path=run / "forecast.json", run_id=run.name)
+            (run / "manifest.json").write_text(json.dumps({"run_id": run.name, "window": ["2026-10-21", "2026-10-21"]}))
+            page = dashboard.build(Path(tmp) / "runs", Path(tmp) / "site")
+            html = page.read_text()
+        self.assertIn("Walungu", html)
+        self.assertNotIn("reprennent le contrôle", html)  # post text must never reach the page
+        self.assertNotIn("/*__DATA__*/", html)
+
+
 if __name__ == "__main__":
     unittest.main()

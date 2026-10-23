@@ -1,4 +1,5 @@
-# Weekly pull, extraction and forecast. Needs repository secrets X_BEARER_TOKEN and
+# Weekly pull, extraction and forecast. 
+# Needs repository secrets X_BEARER_TOKEN and
 # GEMINI_API_KEY (or ANTHROPIC_API_KEY for a claude-* extractor).
 #
 # Run history lives on the `data` branch: manifests, forecasts, health checks, scores and

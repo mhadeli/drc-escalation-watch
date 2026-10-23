@@ -1,0 +1,55 @@
+# Rebuilds the GitHub Pages dashboard from the data branch after every weekly run.
+# One-time setup: Settings -> Pages -> Source: "GitHub Actions". On a free plan Pages
+# needs a public repo; the page contains forecasts and health checks only, never post text.
+name: dashboard
+
+on:
+  workflow_run:
+    workflows: [weekly-forecast]
+    types: [completed]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["dashboard.py", "dashboard/**", "forecast.py"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch run history from the data branch
+        run: |
+          mkdir -p history/runs
+          if git ls-remote --exit-code --heads origin data > /dev/null; then
+            git fetch --depth=1 origin data
+            git worktree add --detach data-branch FETCH_HEAD
+            if [ -d data-branch/runs ]; then cp -R data-branch/runs/. history/runs/; fi
+          fi
+          echo "found $(ls history/runs | wc -l) runs"
+      - run: python dashboard.py --runs history/runs --out site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

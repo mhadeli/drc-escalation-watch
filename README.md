@@ -51,6 +51,19 @@ data branch
 
 Post text is never committed (X developer terms). Raw posts, tagged posts and the brief are kept as a 90-day build artifact, and the brief is also shown on the run's summary page.
 
+### Dashboard (GitHub Pages)
+
+`dashboard.yml` rebuilds a static dashboard from the `data` branch after every weekly run:
+- the forecast per hotspot against its baseline, for 30/60/90 days
+- a map
+- forecasts over time
+- scores against outcomes
+- run health
+
+The page shows forecasts, counts and health checks only, never post text.
+
+One-time setup: **Settings → Pages → Source: GitHub Actions**. On a free GitHub plan, Pages requires the repo to be public. To preview locally, run `python dashboard.py` and open `site/index.html`.
+
 ## Modules
 
 - `fetch_recent.py`: X recent search (last 7 days only).
@@ -59,6 +72,7 @@ Post text is never committed (X developer terms). Raw posts, tagged posts and th
 - `acled.py`: ACLED download via myACLED OAuth login (email and password; ACLED no longer issues API keys).
 - `evaluate.py`: labelling sheet and field-level metrics for any extractor.
 - `pipeline.py`: orchestration, health checks, brief, scoring.
+- `dashboard.py` + `dashboard/index.html`: static dashboard built from saved runs.
 
 ## Model
 
