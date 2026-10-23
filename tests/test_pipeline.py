@@ -172,6 +172,45 @@ class GeminiTests(unittest.TestCase):
         self.assertFalse(el._cache_path(POST["id"], "gemini-3.8-flash").exists())
 
 
+class FetchTests(unittest.TestCase):
+    def setUp(self):
+        import fetch_recent
+
+        self.x = fetch_recent
+        self.old = fetch_recent.request_page
+
+    def tearDown(self):
+        self.x.request_page = self.old
+
+    def fake_pages(self, fail_on_page, status):
+        calls = []
+
+        def request_page(token, query, next_token, page_size):
+            calls.append(next_token)
+            if len(calls) == fail_on_page:
+                raise self.x.XApiError(status, '{"title":"Payment Required"}')
+            page = len(calls)
+            return {"data": [{"id": f"{page}-{i}"} for i in range(page_size)], "meta": {"next_token": f"t{page}"}}
+
+        self.x.request_page = request_page
+
+    def test_out_of_credits_keeps_posts_already_fetched(self):
+        self.fake_pages(fail_on_page=3, status="402")
+        collected = self.x.collect("token", "q", target=500, page_size=100, pause_seconds=0)
+        self.assertEqual(len(collected["posts"]), 200)
+        self.assertIn("402", collected["stopped"])
+
+    def test_failure_on_first_page_still_raises(self):
+        self.fake_pages(fail_on_page=1, status="402")
+        with self.assertRaises(self.x.XApiError):
+            self.x.collect("token", "q", target=500, page_size=100, pause_seconds=0)
+
+    def test_other_errors_still_raise(self):
+        self.fake_pages(fail_on_page=2, status="401")
+        with self.assertRaises(self.x.XApiError):
+            self.x.collect("token", "q", target=500, page_size=100, pause_seconds=0)
+
+
 class DashboardTests(unittest.TestCase):
     def test_page_builds_without_post_text(self):
         import json

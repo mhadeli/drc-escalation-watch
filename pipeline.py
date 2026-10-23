@@ -80,6 +80,8 @@ def health(summary: dict, tagged: list, result: dict, previous: dict | None) -> 
         "gazetteer_gaps": gaps.most_common(10),
     }
     warnings = []
+    if summary.get("stopped_early"):
+        warnings.append(f"X pull stopped early: {summary['stopped_early']}")
     if summary["returned"] < 0.8 * summary["requested"]:
         warnings.append(f"only {summary['returned']} of {summary['requested']} posts returned")
     if usable_share < 0.5:

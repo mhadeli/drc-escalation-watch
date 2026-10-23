@@ -45,6 +45,16 @@ def bearer_token() -> str:
     return token
 
 
+class XApiError(RuntimeError):
+    def __init__(self, status: str, body: str):
+        super().__init__(f"X API HTTP {status}: {body[:800]}")
+        self.status = status
+
+
+# Out of credits or rate-limited: keep the posts already paid for instead of losing the run.
+STOP_STATUSES = {"402", "429"}
+
+
 def request_page(token: str, query: str, next_token: str | None, page_size: int) -> dict:
     params = {
         "query": query,
@@ -75,7 +85,7 @@ def request_page(token: str, query: str, next_token: str | None, page_size: int)
         raise RuntimeError(f"Request failed: {result.stderr.strip()[:400]}")
     body, _, status = result.stdout.rpartition("\n")
     if status != "200":
-        raise RuntimeError(f"X API HTTP {status}: {body[:800]}")
+        raise XApiError(status, body)
     return json.loads(body)
 
 
@@ -86,10 +96,18 @@ def collect(token: str, query: str, target: int, page_size: int = PAGE_SIZE, pau
     places = {}
     next_token = None
     pages = 0
+    stopped = None
 
     while len(posts) < target:
         pages += 1
-        payload = request_page(token, query, next_token, page_size)
+        try:
+            payload = request_page(token, query, next_token, page_size)
+        except XApiError as error:
+            if error.status not in STOP_STATUSES or not posts:
+                raise
+            stopped = str(error)[:200]
+            print(f"page {pages}: stopped early, keeping {len(posts)} posts ({stopped})")
+            break
         batch = payload.get("data") or []
         includes = payload.get("includes") or {}
         for user in includes.get("users") or []:
@@ -115,6 +133,7 @@ def collect(token: str, query: str, target: int, page_size: int = PAGE_SIZE, pau
         "places": places,
         "pages": pages,
         "fetched": len(posts),
+        "stopped": stopped,
     }
 
 
@@ -143,6 +162,7 @@ def save_run(collected: dict, query: str, requested: int) -> dict:
         "posts_file": str(posts_path),
         "users_file": str(users_path),
         "places": len(collected["places"]),
+        "stopped_early": collected.get("stopped"),
     }
     summary_path.write_text(json.dumps(summary, indent=2))
     return summary
