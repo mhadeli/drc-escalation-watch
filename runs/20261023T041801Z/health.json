@@ -1,0 +1,59 @@
+{
+  "posts_returned": 1000,
+  "usable_share": 0.588,
+  "languages": {
+    "fr": 619,
+    "en": 365,
+    "zxx": 7,
+    "ro": 3,
+    "in": 2,
+    "nl": 1,
+    "ar": 1,
+    "tl": 1,
+    "es": 1
+  },
+  "extraction_errors": 0,
+  "gazetteer_gaps": [
+    [
+      "ituri",
+      10
+    ],
+    [
+      "south kivu",
+      6
+    ],
+    [
+      "sud-kivu",
+      5
+    ],
+    [
+      "hombo",
+      4
+    ],
+    [
+      "munanira",
+      4
+    ],
+    [
+      "bideka",
+      4
+    ],
+    [
+      "bafwakoa",
+      4
+    ],
+    [
+      "eastern dr congo",
+      3
+    ],
+    [
+      "ituri province",
+      3
+    ],
+    [
+      "eastern congo",
+      2
+    ]
+  ],
+  "warnings": []
+}
