@@ -2,6 +2,8 @@
 
 Forecasts, for 20 DRC hotspots, the probability of a **major escalation** within 30, 60 and 90 days: a single event with 10+ deaths, a locality changing hands, or 5,000+ newly displaced. "Any violence" is not the target because it is close to certain every month in most eastern territories.
 
+**Live dashboard: [mhadeli.github.io/drc-escalation-watch](https://mhadeli.github.io/drc-escalation-watch/)**. It is rebuilt after every weekly run and shows forecasts by hotspot, a map, trends, scores and run health. No post text is published.
+
 ## Pipeline
 
 ```
