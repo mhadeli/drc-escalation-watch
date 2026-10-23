@@ -1,0 +1,58 @@
+{
+  "posts_returned": 1000,
+  "usable_share": 0.607,
+  "languages": {
+    "fr": 608,
+    "en": 378,
+    "zxx": 6,
+    "ro": 3,
+    "in": 2,
+    "ar": 1,
+    "tl": 1,
+    "es": 1
+  },
+  "extraction_errors": 0,
+  "gazetteer_gaps": [
+    [
+      "ituri",
+      13
+    ],
+    [
+      "south kivu",
+      7
+    ],
+    [
+      "sud-kivu",
+      4
+    ],
+    [
+      "munanira",
+      4
+    ],
+    [
+      "bideka",
+      4
+    ],
+    [
+      "bafwakoa",
+      4
+    ],
+    [
+      "hombo",
+      3
+    ],
+    [
+      "north kivu",
+      3
+    ],
+    [
+      "katanga",
+      2
+    ],
+    [
+      "kivu",
+      2
+    ]
+  ],
+  "warnings": []
+}

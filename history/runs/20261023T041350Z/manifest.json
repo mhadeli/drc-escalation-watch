@@ -1,0 +1,66 @@
+{
+  "run_id": "20261023T041350Z",
+  "issued": "2026-10-23",
+  "window": [
+    "2026-10-18",
+    "2026-10-22"
+  ],
+  "code_hash": "a4efc946a37f",
+  "inputs": {
+    "posts_file": "/Users/adeli/Documents/projects/Peloria/x_post/data/raw/drc_posts_20261022T190717Z.jsonl",
+    "query": "(Goma OR \"North Kivu\" OR \"Nord-Kivu\" OR \"South Kivu\" OR \"Sud-Kivu\" OR Ituri OR M23 OR \"DR Congo\" OR \"RD Congo\" OR RDC OR \"Democratic Republic of the Congo\" OR \"R\u00e9publique d\u00e9mocratique du Congo\") (attaque OR attack OR combat OR violence OR affrontement OR war OR conflict OR displaced OR d\u00e9plac\u00e9s OR fighting OR bombardement OR offensive) -is:retweet",
+    "acled": null
+  },
+  "extractor": {
+    "extractor": "llm",
+    "model": "gemini-3.8-flash",
+    "prompt_version": "v1",
+    "posts": 1000,
+    "errors": 0,
+    "error_examples": [],
+    "tokens": {
+      "input": 487615,
+      "output": 441730,
+      "cache_read": 0
+    }
+  },
+  "base_rates": "tier priors",
+  "counts": {
+    "posts": 1000,
+    "usable": 607,
+    "dropped_off_topic": 317,
+    "dropped_historical": 76
+  },
+  "timings_seconds": {
+    "ingest": 0.01,
+    "extract": 1320.65,
+    "forecast": 0.0
+  },
+  "health": {
+    "usable_share": 0.607,
+    "extraction_errors": 0,
+    "warnings": []
+  },
+  "top5": [
+    {
+      "hotspot": "Walungu (Kaziba, Muhungu, Kamanyola)",
+      "p30": 0.84
+    },
+    {
+      "hotspot": "Uvira (Ruzizi plain)",
+      "p30": 0.689
+    },
+    {
+      "hotspot": "Walikale",
+      "p30": 0.589
+    },
+    {
+      "hotspot": "Fizi (Minembwe, Hauts Plateaux)",
+      "p30": 0.544
+    },
+    {
+      "hotspot": "Djugu",
+      "p30": 0.51
+    }
+  ]
+}
