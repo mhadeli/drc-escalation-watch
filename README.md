@@ -69,6 +69,10 @@ https://mhadeli.github.io/drc-escalation-watch/
 
 To open the same page on local machine: `.venv/bin/python dashboard.py --runs history/runs`, then open `site/index.html`.
 
+
+<img width="861" height="1165" alt="Dashboard" src="https://github.com/user-attachments/assets/547e1720-0095-40e2-9c06-7dcc73e4aa12" />
+
+
 ## Modules
 
 - `fetch_recent.py`: X recent search (last 7 days only).
